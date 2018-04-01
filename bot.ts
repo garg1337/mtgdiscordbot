@@ -28,29 +28,46 @@ client.on('message', msg => {
 });
 
 function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) {
-    if (!cardResponse.card) {
+    if (!cardResponse.results) {
         msg.channel.send(cardResponse.notFoundError);
         return;
     }
 
-    if (!cardResponse.imgOnly) {
-        msg.channel.sendEmbed({
-            title: `${cardResponse.card.name} ${cardResponse.card.mana_cost}`,
-            description: cardResponse.card.oracle_text ? cardResponse.card.oracle_text : '',
-            url: cardResponse.card.scryfall_uri,
-            thumbnail: {
-                url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
-            }
-        });
-    }
-    else {
-        msg.channel.sendEmbed({
-            title: `${cardResponse.card.name}`,
-            url: cardResponse.card.scryfall_uri,
-            image: {
-                url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
-            }
-        });
+    switch (cardResponse.responseType) {
+        case ResponseType.Full: {
+            let card = cardResponse.results[0];
+            msg.channel.sendEmbed({
+                title: `${card.name} ${card.mana_cost}`,
+                description: card.oracle_text ? card.oracle_text : '',
+                url: card.scryfall_uri,
+                thumbnail: {
+                    url: card.image_uris.normal ? card.image_uris.normal : ''
+                },
+                color: 8679679
+            });    
+        };
+        case ResponseType.ImageOnly: {
+            let card = cardResponse.results[0];
+            msg.channel.sendEmbed({
+                title: `${card.name}`,
+                url: card.scryfall_uri,
+                image: {
+                    url: card.image_uris.normal ? card.image_uris.normal : ''
+                },
+                color: 8679679
+            });    
+        }
+        case ResponseType.Multiple: {
+            let fields = cardResponse.results.map(result => ({
+                name: result.name,
+                value: result.scryfall_uri
+            }));
+
+            msg.channel.sendEmbed({
+                title: `Multiple results found!`,
+                fields: fields
+            })
+        }
     }
 }
 
@@ -61,26 +78,29 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
     cards.forEach(card => {
         responses.push(new Promise((resolve,reject) => {
             let imgOnly = card.indexOf('!') === 0;
+            let respType = imgOnly ? ResponseType.ImageOnly : ResponseType.Full
             let cardForSearch = imgOnly ? card.slice(1) : card;
-            Scry.Cards.search(cardForSearch).waitForAll()
+            Scry.Cards.search(cardForSearch)
+            .on("error", (error:Error) => {
+                resolve({
+                    responseType: respType,
+                    notFoundError: 'No cards found =('
+                });
+            })
+            .waitForAll()
             .then(response => {
-                if (response.length === 0) {
+                if (response.length > 1) {
                     resolve({
-                        imgOnly: imgOnly,
-                        notFoundError: 'No cards found =('
-                    });
-                } else if (response.length > 1) {
-                    resolve({
-                        imgOnly: imgOnly,
-                        notFoundError: 'Multiple cards found. Please refine your search'
+                        responseType: ResponseType.Multiple,
+                        results: response
                     });
                 } else {
                     resolve({
-                        imgOnly: imgOnly,
-                        card: response[0]
+                        responseType: respType,
+                        results: response
                     });        
                 }
-            })
+            }) 
         }));
     });
 
@@ -88,9 +108,16 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
 }
 
 interface CardResponse {
-    imgOnly: boolean,
-    card?: Scry.Card,
+    responseType: ResponseType,
     notFoundError?: string
+    results?: Scry.Card[]
+}
+
+enum ResponseType {
+    Full,
+    ImageOnly,
+    Price,
+    Multiple
 }
 
 function getCards(str: string): string[] {
