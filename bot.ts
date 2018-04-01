@@ -27,9 +27,9 @@ client.on('message', msg => {
     };
 });
 
-function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message): any {
+function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) {
     if (!cardResponse.card) {
-        msg.channel.send('Error searching for card: ' + cardResponse.notFoundError);
+        msg.channel.send(cardResponse.notFoundError);
         return;
     }
 
@@ -62,18 +62,24 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
         responses.push(new Promise((resolve,reject) => {
             let imgOnly = card.indexOf('!') === 0;
             let cardForSearch = imgOnly ? card.slice(1) : card;
-            Scry.Cards.byName(cardForSearch)
+            Scry.Cards.search(cardForSearch).waitForAll()
             .then(response => {
-                resolve({
-                    imgOnly: imgOnly,
-                    card: response
-                });    
-            })
-            .catch(error => {
-                resolve({
-                    imgOnly: imgOnly,
-                    notFoundError: error
-                });
+                if (response.length === 0) {
+                    resolve({
+                        imgOnly: imgOnly,
+                        notFoundError: 'No cards found =('
+                    });
+                } else if (response.length > 1) {
+                    resolve({
+                        imgOnly: imgOnly,
+                        notFoundError: 'Multiple cards found. Please refine your search'
+                    });
+                } else {
+                    resolve({
+                        imgOnly: imgOnly,
+                        card: response[0]
+                    });        
+                }
             })
         }));
     });
