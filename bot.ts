@@ -19,9 +19,7 @@ client.on('message', msg => {
         cardsPromise
         .then(cardResponses => {
             cardResponses.forEach(cardResponse => {
-                let embed = getEmbeddableFromCardResponse(cardResponse);
-                console.log(embed);
-                msg.channel.send(embed);
+                sendResponseFromCard(cardResponse, msg);
             })})
         .catch(error => {
             msg.channel.send('An error occurred ' + error);
@@ -29,31 +27,30 @@ client.on('message', msg => {
     };
 });
 
-function getEmbeddableFromCardResponse(cardResponse: CardResponse): any {
+function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message): any {
     if (!cardResponse.card) {
-        return {
-            description: cardResponse.notFoundError
-        };
+        msg.channel.send('Error searching for card: ' + cardResponse.notFoundError);
+        return;
     }
 
     if (!cardResponse.imgOnly) {
-        return {
+        msg.channel.sendEmbed({
             title: `${cardResponse.card.name} ${cardResponse.card.mana_cost}`,
             description: cardResponse.card.oracle_text ? cardResponse.card.oracle_text : '',
             url: cardResponse.card.scryfall_uri,
             thumbnail: {
                 url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
             }
-        }
+        });
     }
     else {
-        return {
+        msg.channel.sendEmbed({
             title: `${cardResponse.card.name}`,
             url: cardResponse.card.scryfall_uri,
             image: {
                 url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
             }
-        }
+        });
     }
 }
 
