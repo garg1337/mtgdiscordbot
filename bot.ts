@@ -1,5 +1,6 @@
 import * as Discord from 'discord.js';
 import * as Scry from 'scryfall-sdk';
+const Url = require('urijs');
 const Config = require('./config.json');
 
 // instantiate client
@@ -17,28 +18,54 @@ client.on('message', msg => {
         let cardsPromise = getResponsesForCards(cards);
         cardsPromise
         .then(cardResponses => {
-            let responseMessage = '\n';
             cardResponses.forEach(cardResponse => {
-                responseMessage = responseMessage + cardResponse.name + ': ' + cardResponse.image_uris.normal + '\n';
-            });
-
-            msg.reply(responseMessage);
-        })
+                if (!cardResponse.imgOnly) {
+                    msg.channel.sendEmbed({
+                        title: `${cardResponse.card.name} ${cardResponse.card.mana_cost}`,
+                        description: cardResponse.card.oracle_text ? cardResponse.card.oracle_text : '',
+                        url: cardResponse.card.scryfall_uri,
+                        thumbnail: {
+                            url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
+                        }
+                    })
+                } else {
+                    msg.channel.sendEmbed({
+                        title: `${cardResponse.card.name}`,
+                        url: cardResponse.card.scryfall_uri,
+                        image: {
+                            url: cardResponse.card.image_uris.normal ? cardResponse.card.image_uris.normal : ''
+                        }                    
+                })
+            }})})
         .catch(error => {
-            msg.reply('No cards found =(');
+            msg.channel.send('No cards found =(');
         });
     };
 });
 
 client.login(Config.token);
 
-function getResponsesForCards(cards: string[]): Promise<Scry.Card[]> {
-    let responses: Promise<Scry.Card>[] = [];
+function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
+    let responses: Promise<CardResponse>[] = [];
     cards.forEach(card => {
-        responses.push(Scry.Cards.byName(card));
+        responses.push(new Promise((resolve,reject) => {
+            let imgOnly = card.indexOf('!') === 0;
+            let cardForSearch = imgOnly ? card.slice(1) : card;
+            Scry.Cards.byName(cardForSearch).then(response => {
+                resolve({
+                    imgOnly: imgOnly,
+                    card: response
+                });    
+            })
+        }));
     });
 
     return Promise.all(responses);
+}
+
+interface CardResponse {
+    imgOnly: boolean,
+    card: Scry.Card
 }
 
 function getCards(str: string): string[] {
