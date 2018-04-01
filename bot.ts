@@ -36,9 +36,10 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
     switch (cardResponse.responseType) {
         case ResponseType.Full: {
             let card = cardResponse.results[0];
+            console.log(card.all_parts);
             msg.channel.sendEmbed({
                 title: `${card.name} ${card.mana_cost}`,
-                description: card.oracle_text ? card.oracle_text : '',
+                description: buildCardDescription(card),
                 url: card.scryfall_uri,
                 thumbnail: {
                     url: card.image_uris.normal ? card.image_uris.normal : ''
@@ -72,6 +73,25 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
             break;
         }
     }
+}
+
+function buildCardDescription(card: Scry.Card) {
+    let description = '';
+    if (card.type_line) {
+        description += `${card.type_line}\n`;
+    }
+
+    description += `${card.oracle_text}\n`;
+
+    if (card.power && card.toughness) {
+        description += `${card.power}/${card.toughness}\n`
+    }
+
+    if (card.loyalty) {
+        description += `Loyalty: ${card.loyalty}`
+    }
+
+    return description;
 }
 
 client.login(Config.token);
