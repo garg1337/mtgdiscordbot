@@ -44,7 +44,8 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
                     url: card.image_uris.normal ? card.image_uris.normal : ''
                 },
                 color: 8679679
-            });    
+            });
+            break;    
         };
         case ResponseType.ImageOnly: {
             let card = cardResponse.results[0];
@@ -55,7 +56,8 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
                     url: card.image_uris.normal ? card.image_uris.normal : ''
                 },
                 color: 8679679
-            });    
+            });
+            break;    
         }
         case ResponseType.Multiple: {
             let fields = cardResponse.results.map(result => ({
@@ -66,7 +68,8 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
             msg.channel.sendEmbed({
                 title: `Multiple results found!`,
                 fields: fields
-            })
+            });
+            break;
         }
     }
 }
@@ -90,10 +93,19 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
             .waitForAll()
             .then(response => {
                 if (response.length > 1) {
-                    resolve({
-                        responseType: ResponseType.Multiple,
-                        results: response
-                    });
+                    let exactMatch = response.find(card => card.name.toLowerCase() === cardForSearch.toLowerCase());
+                    if (exactMatch) {
+                        resolve({
+                            responseType: respType,
+                            results: [exactMatch]                                
+                        });
+                    }
+                    else {
+                        resolve({
+                            responseType: ResponseType.Multiple,
+                            results: response
+                        });    
+                    }
                 } else {
                     resolve({
                         responseType: respType,
