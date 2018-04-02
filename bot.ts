@@ -208,6 +208,7 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
             })
             .waitForAll()
             .then(response => {
+                console.log(response.length);
                 if (response.length > 1) {
                     let exactMatch = response.find(card => card.name.toLowerCase() === cardForSearch.toLowerCase());
                     if (exactMatch) {
