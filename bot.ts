@@ -198,6 +198,11 @@ function buildCardDescription(card: Scry.Card) {
         description += `${card.oracle_text}\n\n`;
     }
 
+    if (card.flavor_text)
+    {
+        description += `*${card.flavor_text}*\n\n`;
+    }
+
     if (card.power && card.toughness) {
         let power = card.power;
         let toughness = card.toughness;
@@ -209,6 +214,7 @@ function buildCardDescription(card: Scry.Card) {
         if (toughness.indexOf('*') !== -1) {
             toughness = toughness.replace('*', '\\*');
         }
+
 
         description += `${power}/${toughness}\n\n`
     }
@@ -223,16 +229,33 @@ function buildCardDescription(card: Scry.Card) {
 function buildCardFaceDescription(cardFace: Scry.CardFace) {
     let description = '';
     if (cardFace.type_line) {
-        description += `${cardFace.type_line}\n`;
+        description += `${cardFace.type_line}\n\n`;
     }
 
     if (cardFace.oracle_text)
     {
-        description += `${cardFace.oracle_text}\n`;
+        description += `${cardFace.oracle_text}\n\n`;
     }
 
+    if (cardFace.flavor_text)
+    {
+        description += `*${cardFace.flavor_text}*\n\n`;
+    }    
+
     if (cardFace.power && cardFace.toughness) {
-        description += `${cardFace.power}/${cardFace.toughness}\n`
+
+        let power = cardFace.power;
+        let toughness = cardFace.toughness;
+
+        if (power.indexOf('*') !== -1) {
+            power = power.replace('*', '\\*');
+        }
+
+        if (toughness.indexOf('*') !== -1) {
+            toughness = toughness.replace('*', '\\*');
+        }
+        
+        description += `${power}/${toughness}\n\n`
     }
 
     if (cardFace.loyalty) {
