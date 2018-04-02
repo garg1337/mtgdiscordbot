@@ -138,16 +138,27 @@ function buildImageCardEmbed(card: Scry.Card) {
 function buildCardDescription(card: Scry.Card) {
     let description = '';
     if (card.type_line) {
-        description += `${card.type_line}\n`;
+        description += `${card.type_line}\n\n`;
     }
 
     if (card.oracle_text)
     {
-        description += `${card.oracle_text}\n`;
+        description += `${card.oracle_text}\n\n`;
     }
 
     if (card.power && card.toughness) {
-        description += `${card.power}/${card.toughness}\n`
+        let power = card.power;
+        let toughness = card.toughness;
+
+        if (power.indexOf('*') !== -1) {
+            power = power.replace('*', '\\*');
+        }
+
+        if (toughness.indexOf('*') !== -1) {
+            toughness = toughness.replace('*', '\\*');
+        }
+
+        description += `${power}/${toughness}\n\n`
     }
 
     if (card.loyalty) {
