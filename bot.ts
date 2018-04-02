@@ -2,15 +2,19 @@ import * as Discord from 'discord.js';
 import * as Scry from 'scryfall-sdk';
 const Url = require('urijs');
 const Config = require('./config.json');
+const manamoji = require('./manamoji');
 
 // instantiate client
 const client = new Discord.Client();
-
 
 let str = '';
 client.on('ready', () => {
     console.log('I am reddy');
 });
+
+client.on('error', error => {
+    console.log(error);
+})
 
 client.on('message', msg => {
     let cards: string[] = getCards(msg.content);
@@ -33,46 +37,102 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
         return;
     }
 
+    let embeds: Discord.RichEmbedOptions[] = [];
     switch (cardResponse.responseType) {
         case ResponseType.Full: {
             let card = cardResponse.results[0];
-            console.log(card.all_parts);
-            msg.channel.sendEmbed({
-                title: `${card.name} ${card.mana_cost}`,
-                description: buildCardDescription(card),
-                url: card.scryfall_uri,
-                thumbnail: {
-                    url: card.image_uris.normal ? card.image_uris.normal : ''
-                },
-                color: 8679679
-            });
-            break;    
+            embeds = buildRegularCardEmbed(card);
+            break;
         };
         case ResponseType.ImageOnly: {
             let card = cardResponse.results[0];
-            msg.channel.sendEmbed({
-                title: `${card.name}`,
-                url: card.scryfall_uri,
-                image: {
-                    url: card.image_uris.normal ? card.image_uris.normal : ''
-                },
-                color: 8679679
-            });
+            embeds = buildImageCardEmbed(card);
             break;    
         }
         case ResponseType.Multiple: {
-            let fields = cardResponse.results.map(result => ({
+            let results = cardResponse.results;
+            if (cardResponse.results.length > 10) {
+                results = results.slice(0, 10);   
+            }
+            let fields = results.map(result => ({
                 name: result.name,
                 value: result.scryfall_uri
             }));
 
-            msg.channel.sendEmbed({
-                title: `Multiple results found!`,
+            embeds = [{
+                title: `Multiple results found!${cardResponse.results.length > 10 ? ' Showing top 10 searches.' : ''}`,
                 fields: fields
-            });
+            }];
             break;
         }
     }
+
+    embeds = embeds.map(embed => manamoji(msg.client, embed));
+    embeds.forEach(embed => {
+        msg.channel.sendEmbed(embed);
+    });
+}
+
+function buildRegularCardEmbed(card: Scry.Card) {
+    let results: Discord.RichEmbedOptions[] = [];
+    if (card.card_faces) {
+        card.card_faces.forEach(face => {
+            let result = {
+                title: `${face.name} ${face.mana_cost}`,
+                description: buildCardFaceDescription(face),
+                url: card.scryfall_uri,
+                thumbnail: {
+                    url: face.image_uris 
+                    ? face.image_uris.normal
+                    : (card.image_uris ? card.image_uris.normal : '') 
+                },
+                color: 8679679
+            };
+            results.push(result);
+        });
+    } else {
+        let result = {
+            title: `${card.name} ${card.mana_cost}`,
+            description: buildCardDescription(card),
+            url: card.scryfall_uri,
+            thumbnail: {
+                url: card.image_uris.normal ? card.image_uris.normal : ''
+            },
+            color: 8679679
+        };
+        results.push(result);    
+    }
+    return results;
+}
+
+function buildImageCardEmbed(card: Scry.Card) {
+    let results: Discord.RichEmbedOptions[] = [];
+    if (card.card_faces && !card.image_uris) {
+        card.card_faces.forEach(face => {
+            let result = {
+                title: `${face.name}`,
+                url: card.scryfall_uri,
+                image: {
+                    url: face.image_uris 
+                    ? face.image_uris.normal
+                    : (card.image_uris ? card.image_uris.normal : '') 
+                },
+                color: 8679679
+            };
+            results.push(result);
+        });
+    } else {
+        let result = {
+            title: `${card.name}`,
+            url: card.scryfall_uri,
+            image: {
+                url: card.image_uris.normal ? card.image_uris.normal : ''
+            },
+            color: 8679679
+        }
+        results.push(result);    
+    }
+    return results;
 }
 
 function buildCardDescription(card: Scry.Card) {
@@ -81,7 +141,10 @@ function buildCardDescription(card: Scry.Card) {
         description += `${card.type_line}\n`;
     }
 
-    description += `${card.oracle_text}\n`;
+    if (card.oracle_text)
+    {
+        description += `${card.oracle_text}\n`;
+    }
 
     if (card.power && card.toughness) {
         description += `${card.power}/${card.toughness}\n`
@@ -92,6 +155,28 @@ function buildCardDescription(card: Scry.Card) {
     }
 
     return description;
+}
+
+function buildCardFaceDescription(cardFace: Scry.CardFace) {
+    let description = '';
+    if (cardFace.type_line) {
+        description += `${cardFace.type_line}\n`;
+    }
+
+    if (cardFace.oracle_text)
+    {
+        description += `${cardFace.oracle_text}\n`;
+    }
+
+    if (cardFace.power && cardFace.toughness) {
+        description += `${cardFace.power}/${cardFace.toughness}\n`
+    }
+
+    if (cardFace.loyalty) {
+        description += `Loyalty: ${cardFace.loyalty}`
+    }
+    
+    return description;    
 }
 
 client.login(Config.token);
