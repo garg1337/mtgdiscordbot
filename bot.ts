@@ -1,5 +1,6 @@
 import * as Discord from 'discord.js';
 import * as Scry from 'scryfall-sdk';
+import "isomorphic-fetch";
 const Url = require('urijs');
 const Config = require('./config.json');
 const manamoji = require('./manamoji');
@@ -32,21 +33,21 @@ client.on('message', msg => {
 });
 
 function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) {
-    if (!cardResponse.results) {
+    if (!cardResponse.results || !cardResponse.results[0]) {
         msg.channel.send(cardResponse.notFoundError);
         return;
     }
 
-    let embeds: Discord.RichEmbedOptions[] = [];
+    let embeds: Promise<Discord.RichEmbedOptions[]> = Promise.resolve([]);
     switch (cardResponse.responseType) {
         case ResponseType.Full: {
             let card = cardResponse.results[0];
-            embeds = buildRegularCardEmbed(card);
+            embeds = Promise.resolve(buildRegularCardEmbed(card));
             break;
         };
         case ResponseType.ImageOnly: {
             let card = cardResponse.results[0];
-            embeds = buildImageCardEmbed(card);
+            embeds = Promise.resolve(buildImageCardEmbed(card));
             break;    
         }
         case ResponseType.Multiple: {
@@ -59,18 +60,69 @@ function sendResponseFromCard(cardResponse: CardResponse, msg: Discord.Message) 
                 value: result.scryfall_uri
             }));
 
-            embeds = [{
+            embeds = Promise.resolve([{
                 title: `Multiple results found!${cardResponse.results.length > 10 ? ' Showing top 10 searches.' : ''}`,
                 fields: fields
-            }];
+            }]);
             break;
+        }
+        case ResponseType.Price: {
+            let card = cardResponse.results[0];
+            embeds = fetch(cardResponse.results[0].prints_search_uri)
+            .then(response => {
+                return response.json();
+            })
+            .then(json => {
+                let printings: Scry.Card[] = json.data;
+                return Promise.resolve(printings);
+            })
+            .then(printings => {
+                let fields = printings.map((printing, index) => ({
+                    name: printing.set_name,
+                    value: buildPriceLine(printing),
+                    inline: true
+                }));
+                let embed: any = {
+                    title: `Prices for ${card.name}`,
+                    url: card.scryfall_uri,
+                    fields: fields
+                };
+                return Promise.resolve([embed]);
+            })
         }
     }
 
-    embeds = embeds.map(embed => manamoji(msg.client, embed));
-    embeds.forEach(embed => {
-        msg.channel.sendEmbed(embed);
+    embeds.then(response => {
+        let embedResps = response.map(embed => manamoji(msg.client, embed));
+        embedResps.forEach(embedResp => {
+            msg.channel.sendEmbed(embedResp);
+        });
     });
+}
+
+function buildPriceLine(card: Scry.Card): string {
+    let line = '';
+    if (card.usd) {
+        line += `$${card.usd}`;
+    }
+
+    if (card.eur) {
+        line += ` • €${card.eur}`;
+    }
+
+    if (card.tix) {
+        line += ` • ${card.tix} TIX`;
+    }
+
+    if (line.indexOf(' • ') === 0) {
+        line = line.slice(3);
+    }
+
+    if (!line) {
+        line = 'N/A'
+    }
+
+    return line;
 }
 
 function buildRegularCardEmbed(card: Scry.Card) {
@@ -198,6 +250,8 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
         responses.push(new Promise((resolve,reject) => {
             let imgOnly = card.indexOf('!') === 0;
             let respType = imgOnly ? ResponseType.ImageOnly : ResponseType.Full
+            let price = card.indexOf('$') === 0;
+            respType = price ? ResponseType.Price : respType;
             let cardForSearch = imgOnly ? card.slice(1) : card;
             Scry.Cards.search(cardForSearch)
             .on("error", (error:Error) => {
@@ -208,7 +262,6 @@ function getResponsesForCards(cards: string[]): Promise<CardResponse[]> {
             })
             .waitForAll()
             .then(response => {
-                console.log(response.length);
                 if (response.length > 1) {
                     let exactMatch = response.find(card => card.name.toLowerCase() === cardForSearch.toLowerCase());
                     if (exactMatch) {
